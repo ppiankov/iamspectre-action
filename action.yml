@@ -1,0 +1,169 @@
+name: 'IAMSpectre Audit'
+description: 'Audit AWS and GCP IAM for stale credentials, overprivileged roles, and policy drift'
+author: 'ppiankov'
+
+branding:
+  icon: 'lock'
+  color: 'red'
+
+inputs:
+  cloud:
+    description: 'Which cloud to audit: aws or gcp'
+    required: true
+  project:
+    description: 'GCP project ID (required when cloud=gcp, ignored for aws)'
+    required: false
+    default: ''
+  profile:
+    description: 'AWS profile name (only for cloud=aws)'
+    required: false
+    default: ''
+  stale-days:
+    description: 'Inactivity threshold in days'
+    required: false
+    default: '90'
+  severity-min:
+    description: 'Minimum severity: critical, high, medium, low'
+    required: false
+    default: 'low'
+  format:
+    description: 'Output format: text, json, sarif, spectrehub'
+    required: false
+    default: 'text'
+  timeout:
+    description: 'Scan timeout'
+    required: false
+    default: '5m'
+  version:
+    description: 'IAMSpectre version to use (e.g., 0.1.0). Defaults to latest.'
+    required: false
+    default: 'latest'
+  args:
+    description: 'Additional arguments to pass to iamspectre'
+    required: false
+    default: ''
+  upload-sarif:
+    description: 'Upload SARIF results to GitHub Security tab (requires format=sarif)'
+    required: false
+    default: 'false'
+
+outputs:
+  exit-code:
+    description: 'Exit code from iamspectre'
+    value: ${{ steps.scan.outputs.exit-code }}
+  report-path:
+    description: 'Path to the generated report file'
+    value: ${{ steps.scan.outputs.report-path }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Determine version
+      id: version
+      shell: bash
+      run: |
+        if [ "${{ inputs.version }}" = "latest" ]; then
+          VERSION=$(gh release view --repo ppiankov/iamspectre --json tagName --jq '.tagName' | sed 's/^v//')
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+        else
+          echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+        fi
+      env:
+        GH_TOKEN: ${{ github.token }}
+
+    - name: Download IAMSpectre
+      shell: bash
+      run: |
+        VERSION="${{ steps.version.outputs.version }}"
+        ARCH=$(uname -m)
+        case "$ARCH" in
+          x86_64) ARCH="amd64" ;;
+          aarch64|arm64) ARCH="arm64" ;;
+        esac
+        OS="linux"
+
+        ASSET="iamspectre_${VERSION}_${OS}_${ARCH}.tar.gz"
+        URL="https://github.com/ppiankov/iamspectre/releases/download/v${VERSION}/${ASSET}"
+
+        echo "Downloading IAMSpectre ${VERSION} (${OS}/${ARCH})..."
+        curl -sSL "${URL}" -o /tmp/iamspectre.tar.gz
+        tar -xzf /tmp/iamspectre.tar.gz -C /tmp
+        chmod +x /tmp/iamspectre
+        echo "/tmp" >> "$GITHUB_PATH"
+
+    - name: Run IAMSpectre audit
+      id: scan
+      shell: bash
+      run: |
+        CLOUD="${{ inputs.cloud }}"
+        FORMAT="${{ inputs.format }}"
+        REPORT_PATH=""
+
+        if [ "${CLOUD}" != "aws" ] && [ "${CLOUD}" != "gcp" ]; then
+          echo "report-path=${REPORT_PATH}" >> "$GITHUB_OUTPUT"
+          echo "exit-code=2" >> "$GITHUB_OUTPUT"
+          echo "::error::Invalid cloud '${CLOUD}'. Expected 'aws' or 'gcp'."
+          exit 2
+        fi
+
+        CMD=(iamspectre "${CLOUD}")
+        CMD+=("--stale-days" "${{ inputs.stale-days }}")
+        CMD+=("--severity-min" "${{ inputs.severity-min }}")
+        CMD+=("--format" "${FORMAT}")
+        CMD+=("--timeout" "${{ inputs.timeout }}")
+
+        if [ "${CLOUD}" = "aws" ]; then
+          if [ -n "${{ inputs.profile }}" ]; then
+            CMD+=("--profile" "${{ inputs.profile }}")
+          fi
+        fi
+
+        if [ "${CLOUD}" = "gcp" ]; then
+          if [ -z "${{ inputs.project }}" ]; then
+            echo "report-path=${REPORT_PATH}" >> "$GITHUB_OUTPUT"
+            echo "exit-code=2" >> "$GITHUB_OUTPUT"
+            echo "::error::Input 'project' is required when cloud=gcp."
+            exit 2
+          fi
+          CMD+=("--project" "${{ inputs.project }}")
+        fi
+
+        if [ "${FORMAT}" = "sarif" ]; then
+          REPORT_PATH="${{ runner.temp }}/iamspectre.sarif"
+          CMD+=("--output" "${REPORT_PATH}")
+        elif [ "${FORMAT}" = "json" ] || [ "${FORMAT}" = "spectrehub" ]; then
+          REPORT_PATH="${{ runner.temp }}/iamspectre.json"
+          CMD+=("--output" "${REPORT_PATH}")
+        fi
+
+        if [ -n "${{ inputs.args }}" ]; then
+          read -r -a EXTRA_ARGS <<< "${{ inputs.args }}"
+          CMD+=("${EXTRA_ARGS[@]}")
+        fi
+
+        set +e
+        "${CMD[@]}"
+        EXIT_CODE=$?
+        set -e
+
+        echo "report-path=${REPORT_PATH}" >> "$GITHUB_OUTPUT"
+        echo "exit-code=${EXIT_CODE}" >> "$GITHUB_OUTPUT"
+
+        if [ "${EXIT_CODE}" -eq 2 ]; then
+          echo "::error::IAMSpectre encountered a configuration or connection error (exit code 2)"
+          exit 2
+        fi
+
+        if [ "${EXIT_CODE}" -eq 1 ]; then
+          echo "::warning::IAMSpectre found IAM issues (exit code 1)"
+        elif [ "${EXIT_CODE}" -ne 0 ]; then
+          echo "::error::IAMSpectre failed with unexpected exit code ${EXIT_CODE}"
+          exit "${EXIT_CODE}"
+        fi
+
+    - name: Upload SARIF
+      if: inputs.upload-sarif == 'true' && inputs.format == 'sarif' && steps.scan.outputs.report-path != '' && always()
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ steps.scan.outputs.report-path }}
+        category: iamspectre
