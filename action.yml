@@ -27,7 +27,7 @@ inputs:
     required: false
     default: 'low'
   format:
-    description: 'Output format: text, json, sarif, spectrehub'
+    description: 'Output format: text, report, json, sarif, spectrehub'
     required: false
     default: 'text'
   timeout:
@@ -133,6 +133,9 @@ runs:
           CMD+=("--output" "${REPORT_PATH}")
         elif [ "${FORMAT}" = "json" ] || [ "${FORMAT}" = "spectrehub" ]; then
           REPORT_PATH="${{ runner.temp }}/iamspectre.json"
+          CMD+=("--output" "${REPORT_PATH}")
+        elif [ "${FORMAT}" = "report" ]; then
+          REPORT_PATH="${{ runner.temp }}/iamspectre.md"
           CMD+=("--output" "${REPORT_PATH}")
         fi
 

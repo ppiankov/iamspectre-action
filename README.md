@@ -76,7 +76,7 @@ Set up cloud credentials before running the action. For AWS, provide credentials
 | `profile` | No | — | AWS profile name; only used when `cloud: aws` |
 | `stale-days` | No | `90` | Inactivity threshold in days |
 | `severity-min` | No | `low` | Minimum severity: `critical`, `high`, `medium`, `low` |
-| `format` | No | `text` | Output format: `text`, `json`, `sarif`, `spectrehub` |
+| `format` | No | `text` | Output format: `text`, `report`, `json`, `sarif`, `spectrehub` |
 | `timeout` | No | `5m` | Scan timeout |
 | `version` | No | `latest` | IAMSpectre version (for example, `0.1.0`) |
 | `args` | No | — | Additional arguments passed to `iamspectre aws` or `iamspectre gcp` |
@@ -87,7 +87,7 @@ Set up cloud credentials before running the action. For AWS, provide credentials
 | Output | Description |
 |--------|-------------|
 | `exit-code` | Exit code from `iamspectre` (`0=ok`, `1=findings`, `2=error`) |
-| `report-path` | Path to generated report file (`json`, `sarif`, `spectrehub` formats) |
+| `report-path` | Path to generated report file (`report`, `json`, `sarif`, `spectrehub` formats) |
 
 ## Exit codes
 
