@@ -4,7 +4,7 @@ GitHub Action for [IAMSpectre](https://github.com/ppiankov/iamspectre) — audit
 
 ## What it does
 
-- Downloads the IAMSpectre binary (auto-detects latest version)
+- Downloads the IAMSpectre binary (auto-detects latest version, matching the runner's OS and architecture: Linux, macOS, and Windows on amd64 and arm64)
 - Audits either AWS or GCP IAM based on the `cloud` input
 - Checks for stale credentials, overprivileged access, and risky IAM findings
 - Optionally uploads SARIF results to GitHub Security tab

@@ -83,17 +83,37 @@ runs:
         case "$ARCH" in
           x86_64) ARCH="amd64" ;;
           aarch64|arm64) ARCH="arm64" ;;
+          *)
+            echo "::error::Unsupported runner architecture '${ARCH}'. iamspectre publishes amd64 and arm64 only."
+            exit 2
+            ;;
         esac
-        OS="linux"
 
-        ASSET="iamspectre_${VERSION}_${OS}_${ARCH}.tar.gz"
+        case "${{ runner.os }}" in
+          Linux) OS="linux"; EXT="tar.gz" ;;
+          macOS) OS="darwin"; EXT="tar.gz" ;;
+          Windows) OS="windows"; EXT="zip" ;;
+          *)
+            echo "::error::Unsupported runner OS '${{ runner.os }}'. Supported: Linux, macOS, Windows."
+            exit 2
+            ;;
+        esac
+
+        DEST="${{ runner.temp }}"
+        ASSET="iamspectre_${VERSION}_${OS}_${ARCH}.${EXT}"
         URL="https://github.com/ppiankov/iamspectre/releases/download/v${VERSION}/${ASSET}"
 
         echo "Downloading IAMSpectre ${VERSION} (${OS}/${ARCH})..."
-        curl -sSL "${URL}" -o /tmp/iamspectre.tar.gz
-        tar -xzf /tmp/iamspectre.tar.gz -C /tmp
-        chmod +x /tmp/iamspectre
-        echo "/tmp" >> "$GITHUB_PATH"
+        curl -sSL "${URL}" -o "${DEST}/${ASSET}"
+
+        if [ "${EXT}" = "zip" ]; then
+          unzip -o -q "${DEST}/${ASSET}" -d "${DEST}"
+        else
+          tar -xzf "${DEST}/${ASSET}" -C "${DEST}"
+        fi
+
+        chmod +x "${DEST}"/iamspectre* 2>/dev/null || true
+        echo "${DEST}" >> "$GITHUB_PATH"
 
     - name: Run IAMSpectre audit
       id: scan
