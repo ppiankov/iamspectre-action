@@ -8,7 +8,7 @@ GitHub Action for [IAMSpectre](https://github.com/ppiankov/iamspectre) — audit
 - Audits either AWS or GCP IAM based on the `cloud` input
 - Checks for stale credentials, overprivileged access, and risky IAM findings
 - Optionally uploads SARIF results to GitHub Security tab
-- Propagates scan exit codes for CI/CD gating
+- Fails the step on configuration/runtime errors (exit code 2); exposes the scan exit code as an output, and optionally fails the step on findings too via `fail-on-findings`
 
 ## What it does NOT do
 
@@ -47,6 +47,15 @@ Set up cloud credentials before running the action. For AWS, provide credentials
     severity-min: high
 ```
 
+### Fail the build on findings
+
+```yaml
+- uses: ppiankov/iamspectre-action@v1
+  with:
+    cloud: aws
+    fail-on-findings: 'true'
+```
+
 ### SARIF upload to GitHub Security tab
 
 ```yaml
@@ -81,6 +90,7 @@ Set up cloud credentials before running the action. For AWS, provide credentials
 | `version` | No | `latest` | IAMSpectre version (for example, `0.1.0`) |
 | `args` | No | — | Additional arguments passed to `iamspectre aws` or `iamspectre gcp` |
 | `upload-sarif` | No | `false` | Upload SARIF to GitHub Security tab (requires `format: sarif`) |
+| `fail-on-findings` | No | `false` | Fail the step (not just warn) when findings are detected (exit code 1) |
 
 ## Outputs
 
@@ -94,8 +104,8 @@ Set up cloud credentials before running the action. For AWS, provide credentials
 | Code | Meaning |
 |------|---------|
 | 0 | Audit completed without findings |
-| 1 | Findings detected; reported as a GitHub Actions warning |
-| 2 | Configuration, credential, or runtime error |
+| 1 | Findings detected; reported as a GitHub Actions warning by default. The step still succeeds unless `fail-on-findings: 'true'` is set, in which case it fails the step too |
+| 2 | Configuration, credential, or runtime error; always fails the step |
 
 ## License
 
