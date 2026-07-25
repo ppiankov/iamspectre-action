@@ -107,7 +107,9 @@ runs:
         curl -sSL "${URL}" -o "${DEST}/${ASSET}"
 
         if [ "${EXT}" = "zip" ]; then
-          python3 -c "import zipfile; zipfile.ZipFile('${DEST}/${ASSET}').extractall('${DEST}')"
+          export ZIP_SRC="${DEST}/${ASSET}"
+          export ZIP_DEST="${DEST}"
+          pwsh -NoProfile -Command 'Expand-Archive -Path $env:ZIP_SRC -DestinationPath $env:ZIP_DEST -Force'
         else
           tar -xzf "${DEST}/${ASSET}" -C "${DEST}"
         fi
