@@ -107,7 +107,7 @@ runs:
         curl -sSL "${URL}" -o "${DEST}/${ASSET}"
 
         if [ "${EXT}" = "zip" ]; then
-          unzip -o -q "${DEST}/${ASSET}" -d "${DEST}"
+          python3 -c "import zipfile; zipfile.ZipFile('${DEST}/${ASSET}').extractall('${DEST}')"
         else
           tar -xzf "${DEST}/${ASSET}" -C "${DEST}"
         fi
